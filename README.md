@@ -10,7 +10,9 @@
 
 ## News
 
-🔥🔥🔥 [2024/12/28] We are pleased to announce the updated version of the CGM-72B. The model further achieves a remarkable 41.67% resolve rate on the SWE-Bench-Lite leaderboard.
+🔥🔥🔥 [2025/01/15] We are pleased to announce the updated version of the CGM-72B-V1.2. The model further achieves a remarkable 43.00% resolve rate on the SWE-Bench-Lite leaderboard.
+
+🔥🔥🔥 [2024/12/28] We are pleased to announce the updated version of the CGM-72B-V1.1. The model further achieves a remarkable 41.67% resolve rate on the SWE-Bench-Lite leaderboard.
 
 🔥🔥🔥 [2024/10/28] We are pleased to announce the release of the CGM-72B. The model achieves a remarkable 35.67% resolve rate on the SWE-Bench-Lite leaderboard.
 
