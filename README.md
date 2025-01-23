@@ -23,7 +23,7 @@ We propose a graph-based framework CGM for real-world SE tasks. Before CGM start
 
 ### Framework
 
-![Framework](./assets/framework_1126.jpeg)
+![Framework](./assets/cgm_framework_0123.jpeg)
 
 ### Highlights
 :white_check_mark: **Code Graph**: Train models on multiple tasks while maintaining a balance between them. The models can even generalize to new, previously unseen tasks.
