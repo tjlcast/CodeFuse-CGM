@@ -45,6 +45,4 @@ Embracing an innovation-driven ethos, our team not only supports business implem
 
 **We are on the lookout for top talents to join our vibrant team! If you're eager to develop your career in an environment filled with energy, innovation, and a culture of excellence, we welcome you to explore our career opportunities for both campus and experienced hires. Join us and be a part of creating the next milestone in the industry.**
 
-**Campus Recruitment**: https://hrrecommend.antgroup.com/guide.html?code=8uoP5mlus5DqQYbE_EnqcE2FD5JZH21MwvMUIb9mb6X3osXPuBraG54SyM8GLn_7
-
-**Experienced Hires**: https://talent.antgroup.com/off-campus-position?positionId=1933830
+**Contact**: hyu.hugo@antgroup.com 
