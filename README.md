@@ -6,7 +6,7 @@
 - [News](#news)
 - [Introduction](#introduction)
 - [Installation](#installation)
-- [Usage](#usage)
+- [Examples](#examples)
   - [Rewriter](#rewriter)
   - [Retriever](#retriever)
   - [Reranker](#reranker)
@@ -57,7 +57,7 @@ python-Levenshtein==0.25.1
 networkx==3.0
 ```
 
-## Usage
+## Examples
 
 ### Rewriter
 Use function ```generate_prompt_for_extractor``` and ```generate_prompt_for_inferer``` in ```rewriter/prompt.py```
