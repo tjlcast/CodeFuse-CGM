@@ -3,10 +3,17 @@
 ![CodefuseLogo](./assets/github-codefuse-logo-update.jpg)
 
 ## Contents
-- [News](#News)
-- [Introduction](#Introduction)
-- [Contributing](#Contributing)
-- [Join Us](#Join-Us)
+- [News](#news)
+- [Introduction](#introduction)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Rewriter](#rewriter)
+  - [Retriever](#retriever)
+  - [Reranker](#reranker)
+  - [Reader](#reader)
+- [Contributing](#contributing)
+- [Citation](#citation)
+- [Join Us](#join-us)
 
 ## News
 
