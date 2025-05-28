@@ -374,7 +374,17 @@ For major changes, please open an issue first to discuss the proposed changes.
 
 ## Citation
 If you find our work useful or helpful for your R&D works, please feel free to cite our paper as below.
-
+```bibtex
+@misc{tao2025codegraphmodelcgm,
+      title={Code Graph Model (CGM): A Graph-Integrated Large Language Model for Repository-Level Software Engineering Tasks}, 
+      author={Hongyuan Tao and Ying Zhang and Zhenhao Tang and Hongen Peng and Xukun Zhu and Bingchang Liu and Yingguang Yang and Ziyin Zhang and Zhaogui Xu and Haipeng Zhang and Linchao Zhu and Rui Wang and Hang Yu and Jianguo Li and Peng Di},
+      year={2025},
+      eprint={2505.16901},
+      archivePrefix={arXiv},
+      primaryClass={cs.SE},
+      url={https://arxiv.org/abs/2505.16901}, 
+}
+```
 ## Join-US
 
 We are the AI Native team within the Platform Technology Business Group at Ant Group, dedicated to the intelligentization of Ant Group's platform engineering. Established for over three years, our team has played a pivotal role in supporting the intelligent operation and maintenance of Ant Group's cloud computing infrastructure. Our mission is to build algorithm services and platforms with a wide user base through world-class technological innovation and impact, supporting the implementation of internal and external products and businesses.
