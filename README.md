@@ -17,7 +17,7 @@
 
 ## News
 
-![SWE-Bench-Lite](./assets/SWE-Bench-Lite.png)
+![SWE-Bench-Lite](./assets/swe-bench-lite-ow.png)
 
 🔥🔥🔥 [2025/01/15] We are pleased to announce the updated version of the CGM-72B-V1.2. The model further achieves a remarkable 44.00% resolve rate on the SWE-Bench-Lite leaderboard.
 
