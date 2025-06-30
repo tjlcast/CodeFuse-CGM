@@ -27,6 +27,10 @@
 
 🔥🔥🔥 [2024/10/28] We released **CGM**, mainly for repository-level coding tasks.
 
+- 📜 **Paper**: [Code Graph Model (CGM): A Graph-Integrated Large Language Model for Repository-Level Software Engineering Tasks](https://arxiv.org/abs/2505.16901)
+- 🤖 **Model**: [codefuse-ai/CodeFuse-CGM-72B](https://huggingface.co/codefuse-ai/CodeFuse-CGM-72B)
+- 📊 **Data**: [codefuse-ai/CodeGraph](https://huggingface.co/datasets/codefuse-ai/CodeGraph)
+
 ## Introduction
 We propose a graph-based framework CGM for real-world SE tasks. Before CGM starts its work, we construct a repository-level code graph to better represent the repository context and its structure by Code Graph Generator. Inspired by the Retrieval-Augmented Generation (RAG) approach, CGM framework is designed as a chain structure consisting of four atomic nodes, termed as R4 (Rewriter, Retriever, Reranker, and Reader) chain for this scenario. Given an issue, the initial input to the CGM framework includes the issue description and the corresponding code graph. Rewriter will first rewrite the original issue by extracting keywords and generating relevant queries for code graph. Then a heuristic code subgraph is retrieved through Retriever based on the matching anchor nodes from rewriter output. Given that the resulting subgraph provides a relatively broad context necessary for reference, we need a Reranker to identify the files most likely to be modified as a further hint. Subsequently, both the retrieved subgraph and the identified files are input into a trainable, graph-based Reader to generate the corresponding code patch.
 
