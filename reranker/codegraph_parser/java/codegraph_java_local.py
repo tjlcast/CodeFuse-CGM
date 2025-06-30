@@ -1,6 +1,3 @@
-"""
-parser for Java code graph
-"""
 import json
 import random
 from enum import Enum, auto
@@ -303,13 +300,12 @@ class File:
     - name: 文件名
     """
 
-    def __init__(self, node_id, name, path, text, codegraph, clean_text):
+    def __init__(self, node_id, name, path, text, codegraph):
         self.node_id = node_id
         self.name = name
         self.path = path
         self.text = text
         self.codegraph = codegraph
-        self.clean_text = clean_text
 
     @staticmethod
     def get_type():
@@ -389,16 +385,13 @@ class File:
         return self.name
 
     def to_dict(self):
-        return {"nodeType": NodeType.FILE.name.capitalize(), "nodeId": self.node_id,
-                "name": self.name, "path": self.path, "text": self.text, "clean_text": self.clean_text}
+        return {"nodeType": NodeType.FILE.name.capitalize(), "nodeId": self.node_id, "name": self.name, "path": self.path, "text": self.text}
     
     def get_content(self):
         filepath = self.path if self.path else ''
         filename = "# Filename: " + filepath + self.name + "\n"
-        if self.clean_text:
-            return filename + self.clean_text
-        elif self.text:
-            return filename + self.text # 为了兼容没有经过 clean text 处理的数据
+        if self.text:
+            return filename + self.text
         else:
             return filename
 
@@ -444,7 +437,7 @@ class Class:
     - comment: 注释
     """
 
-    def __init__(self, node_id, name, class_type, modifiers, comment, text, start_loc, end_loc, codegraph, clean_text):
+    def __init__(self, node_id, name, class_type, modifiers, comment, text, start_loc, end_loc, codegraph):
         self.node_id = node_id
         self.name = name
         self.class_type = class_type
@@ -454,7 +447,6 @@ class Class:
         self.start_loc = start_loc
         self.end_loc = end_loc
         self.codegraph = codegraph
-        self.clean_text = clean_text
 
     @staticmethod
     def get_type():
@@ -582,14 +574,12 @@ class Class:
     def to_dict(self):
         return {"nodeType": NodeType.CLASS.name.capitalize(), "nodeId": self.node_id, "name": self.name,
                 "classType": self.class_type, "comment": self.comment, "text": self.text, "startLoc": self.start_loc,
-                "endLoc": self.end_loc, "modifiers": self.modifiers, "clean_text": self.clean_text}
+                "endLoc": self.end_loc, "modifiers": self.modifiers}
         
     def get_content(self):
-
-        if self.clean_text:
-            return self.name + self.clean_text
-        elif self.text:
-            return self.name + self.text # 为了兼容没有经过 clean text 处理的数据
+        
+        if self.text:
+            return self.name + self.text
         else:
             return self.name
 
@@ -806,20 +796,13 @@ def parse(filename):
         elif node_type.upper() == "MODULE":
             codegraph.nodes[node_id] = Package(node_id, node['name'], codegraph)
         elif node_type.upper() == NodeType.FILE.name:
-            codegraph.nodes[node_id] = File(node_id, node['name'], node.get('path'), node.get('text'), codegraph, node.get('clean_text'))
+            codegraph.nodes[node_id] = File(node_id, node['name'], node.get('path'), node.get('text'), codegraph)
         elif node_type.upper() == NodeType.TEXTFILE.name:
             codegraph.nodes[node_id] = TextFile(node_id, node['name'], node['text'], node.get('path'), codegraph)
         elif node_type.upper() == NodeType.CLASS.name:
-
-            # Patch：由于 Lib 不连通，考虑不读入 Lib 节点
-            ########################################
-            if node.get('classType') == 'Lib':
-                continue
-            ########################################
-
             codegraph.nodes[node_id] = Class(node_id, node['name'], node.get('classType'), node.get('modifiers'),
                                              node.get('comment'), node.get('text'), node.get('startLoc'),
-                                             node.get('endLoc'), codegraph, node.get('clean_text'))
+                                             node.get('endLoc'), codegraph)
         elif node_type.upper() == NodeType.FIELD.name:
             codegraph.nodes[node_id] = Field(node_id, node['name'], node['fieldType'], node.get('initializer'),
                                              node.get('modifiers'), node.get('comment'), node.get('arguments'),

@@ -1,5 +1,8 @@
 """
-parser for Java code graph
+这个 parser 将兼容 CGM 项目格式
+即 所有节点的内容 将裁剪掉其子节点内容（保证内容不重复）
+为 File 和 Class 节点新增 clean_text 字段
+get_content 函数也将返回 clean_text 字段组成的内容
 """
 import json
 import random
@@ -16,8 +19,9 @@ class NodeType(Enum):
     FILE = auto(),
     TEXTFILE = auto(),
     CLASS = auto(),
-    FIELD = auto(),
-    METHOD = auto()
+    ATTRIBUTE = auto(),
+    FUNCTION = auto()
+    LAMBDA = auto()
 
 
 class EdgeType(Enum):
@@ -161,29 +165,32 @@ class CodeGraph:
     def to_dict(self):
         return {"nodes": self.nodes_to_dict(), "edges": self.edges_to_dict()}
 
-
-current_repo = ""
-
-
 class Repo:
     """
     代码仓节点
-    - path: 代码仓路径
+    - repo_name: 代码名
+    - group_name: 组名
     """
 
-    def __init__(self, node_id, path, codegraph):
+    def __init__(self, node_id, repo_name, codegraph):
         self.node_id = node_id
-        self.repo_name = None
-        self.path = path
-        if path is not None:
-            # self.path = path[path.rfind("/") + 1:].replace('#', '/')
-            if "#" in path:
-                self.repo_name = path.split("/")[-1]
-            else:
-                self.repo_name = path
+        # index = repo_name.index('#') # index函数在找不到 # 时会报错，swebench仓库没有这个信息
+        # 这个 reponame 是想去掉 base commit 的信息
+        if "#" in repo_name:
+            repo_name = repo_name.replace('#', '/', 1)
+            try: # 针对不统一的命名方式
+                self.repo_name, _ = repo_name.split("#")
+            except:
+                self.repo_name = repo_name
         else:
-            self.path = current_repo
-            self.repo_name = current_repo # 空的仓库名
+            self.repo_name = repo_name
+        # index = repo_name.find('#')
+        # if index != -1:
+        #     self.repo_name = repo_name[index + 1:]
+        #     self.group_name = repo_name[:index]
+        # else:
+        #     self.repo_name = repo_name
+        self.group_name = ""
         self.codegraph = codegraph
 
     @staticmethod
@@ -203,11 +210,11 @@ class Repo:
         return len(set(map(lambda e: e.edge_type, self.codegraph.edges)))
 
     def query_modules(self):
-        modules = self.get_packages()
+        modules = self.get_modules()
         s = '\n'.join(list(map(lambda x: x.name, modules)))
-        return f'仓库{self.path}包含以下模块:\n{s}'
+        return f'仓库{self.repo_name}包含以下模块:\n{s}'
 
-    def get_packages(self):
+    def get_modules(self):
         contained_ids = self.codegraph.get_out_nodes(self.node_id, EdgeType.CONTAINS)
         contained = list(map(self.codegraph.get_node_by_id, contained_ids))
         return list(filter(lambda n: n.get_type() == NodeType.PACKAGE, contained))
@@ -215,11 +222,11 @@ class Repo:
     def query_files(self):
         files = self.get_files()
         s = '\n'.join(list(map(lambda x: x.name, files)))
-        return f'仓库{self.path}包含以下文件:\n{s}'
+        return f'仓库{self.repo_name}包含以下文件:\n{s}'
 
     def get_files(self):
         files = []
-        modules = self.get_packages()
+        modules = self.get_modules()
         for module in modules:
             files += module.get_files()
         return files
@@ -227,7 +234,7 @@ class Repo:
     def query_classes(self):
         classes = self.get_classes()
         s = '\n'.join(list(map(lambda x: x.name, classes)))
-        return f'仓库{self.path}包含了以下类:\n{s}'
+        return f'仓库{self.repo_name}包含了以下类:\n{s}'
 
     def get_classes(self):
         classes = []
@@ -237,13 +244,13 @@ class Repo:
         return classes
 
     def __str__(self):
-        return self.path
+        return self.repo_name
 
     def __repr__(self):
-        return self.path
+        return self.repo_name
 
     def to_dict(self):
-        return {"nodeType": NodeType.REPO.name.capitalize(), "nodeId": self.node_id, "path": self.path}
+        return {"nodeType": NodeType.REPO.name.capitalize(), "id": self.node_id, "repoName": self.repo_name, "groupName": self.group_name}
     
     def get_content(self):
         return self.repo_name
@@ -291,11 +298,10 @@ class Package:
         return self.name
 
     def to_dict(self):
-        return {"nodeType": NodeType.PACKAGE.name.capitalize(), "nodeId": self.node_id, "name": self.name}
-    
+        return {"nodeType": NodeType.PACKAGE.name.capitalize(), "id": self.node_id, "name": self.name}
+
     def get_content(self):
         return self.name
-
 
 class File:
     """
@@ -342,16 +348,16 @@ class File:
     def get_classes_ids(self):
         return self.codegraph.get_out_nodes(self.node_id, EdgeType.CONTAINS)
 
-    def query_methods(self):
-        methods = self.get_methods()
-        s = '\n'.join(list(map(lambda x: x.signature, methods)))
+    def query_functions(self):
+        functions = self.get_functions()
+        s = '\n'.join(list(map(lambda x: x.header, functions)))
         return f'文件{self.name}中包含以下方法:\n{s}'
 
-    def get_methods(self):
-        methods = []
+    def get_functions(self):
+        functions = []
         for clazz in self.get_classes():
-            methods += clazz.get_methods()
-        return methods
+            functions += clazz.get_functions()
+        return functions
 
     def query_dependent_files(self):
         dependent_files = self.get_dependent_files()
@@ -389,16 +395,15 @@ class File:
         return self.name
 
     def to_dict(self):
-        return {"nodeType": NodeType.FILE.name.capitalize(), "nodeId": self.node_id,
-                "name": self.name, "path": self.path, "text": self.text, "clean_text": self.clean_text}
-    
+        return {"nodeType": NodeType.FILE.name.capitalize(), "id": self.node_id,
+                "fileName": self.name, "filePath": self.path, "text": self.text,
+                "clean_text": self.clean_text}
+
     def get_content(self):
         filepath = self.path if self.path else ''
         filename = "# Filename: " + filepath + self.name + "\n"
         if self.clean_text:
             return filename + self.clean_text
-        elif self.text:
-            return filename + self.text # 为了兼容没有经过 clean text 处理的数据
         else:
             return filename
 
@@ -427,8 +432,7 @@ class TextFile:
         return self.name
 
     def to_dict(self):
-        return {"nodeType": NodeType.TEXTFILE.name.capitalize(), "nodeId": self.node_id, "name": self.name,
-                "text": self.text, "path": self.path}
+        return {"nodeType": NodeType.TEXTFILE.name.capitalize(), "id": self.node_id, "name": self.name, "text": self.text, "path": self.path}
     
     def get_content(self):
         if self.text:
@@ -444,15 +448,15 @@ class Class:
     - comment: 注释
     """
 
-    def __init__(self, node_id, name, class_type, modifiers, comment, text, start_loc, end_loc, codegraph, clean_text):
+    def __init__(self, node_id, name, class_type, comment, text, start_loc, end_loc, col, codegraph, clean_text):
         self.node_id = node_id
         self.name = name
         self.class_type = class_type
-        self.modifiers = modifiers
         self.comment = comment
         self.text = text
         self.start_loc = start_loc
         self.end_loc = end_loc
+        self.col = col
         self.codegraph = codegraph
         self.clean_text = clean_text
 
@@ -523,40 +527,40 @@ class Class:
         return (set(self.codegraph.get_in_nodes(self.node_id, EdgeType.EXTENDS))
                 | set(self.codegraph.get_in_nodes(self.node_id, EdgeType.IMPLEMENTS)))
 
-    def query_methods(self):
-        methods = self.get_methods()
-        if len(methods) == 0:
-            return f'类{self.name}中没有定义方法'
-        a = '\n'.join(list(map(lambda m: m.get_simple_signature(), methods)))
-        return f"类{self.name}定义了以下方法:\n{a}"
+    def query_functions(self):
+        functions = self.get_functions()
+        if len(functions) == 0:
+            return f'类{self.name}中没有定义函数'
+        a = '\n'.join(list(map(lambda m: m.get_simple_signature(), functions)))
+        return f"类{self.name}定义了以下函数:\n{a}"
 
-    def get_methods(self):
-        return list(filter(lambda n: n.get_type() == NodeType.METHOD.METHOD,
+    def get_functions(self):
+        return list(filter(lambda n: n.get_type() == NodeType.FUNCTION,
                            list(map(self.codegraph.get_node_by_id,
                                     self.codegraph.get_out_nodes(self.node_id, EdgeType.CONTAINS)))))
 
-    def query_all_methods(self):
-        methods = self.get_all_methods()
-        if len(methods) == 0:
+    def query_all_functions(self):
+        functions = self.get_all_functions()
+        if len(functions) == 0:
             return f'类{self.name}中不包含方法'
-        a = '\n'.join(list(map(lambda m: m.signature, methods)))
+        a = '\n'.join(list(map(lambda m: m.header, functions)))
         return f"类{self.name}包含了以下方法:\n{a}"
 
-    def get_all_methods(self):
-        methods = self.get_methods()
+    def get_all_functions(self):
+        functions = self.get_functions()
         for superclass in self.get_superclass_list():
-            methods += superclass.get_all_methods()
-        return methods
+            functions += superclass.get_all_functions()
+        return functions
 
     def query_fields(self):
-        fields = self.get_fields()
+        fields = self.get_attribute()
         if len(fields) == 0:
             return f'类{self.name}中没有定义字段'
         a = '\n'.join(list(map(lambda f: f'{f.name}:{f.field_type}', fields)))
         return f"类{self.name}定义了以下字段:\n{a}"
 
-    def get_fields(self):
-        return list(filter(lambda n: n.get_type() == NodeType.FIELD,
+    def get_attribute(self):
+        return list(filter(lambda n: n.get_type() == NodeType.ATTRIBUTE,
                            list(map(self.codegraph.get_node_by_id,
                                     self.codegraph.get_out_nodes(self.node_id, EdgeType.CONTAINS)))))
 
@@ -580,99 +584,85 @@ class Class:
         return self.name
 
     def to_dict(self):
-        return {"nodeType": NodeType.CLASS.name.capitalize(), "nodeId": self.node_id, "name": self.name,
+        return {"nodeType": NodeType.CLASS.name.capitalize(), "id": self.node_id, "className": self.name,
                 "classType": self.class_type, "comment": self.comment, "text": self.text, "startLoc": self.start_loc,
-                "endLoc": self.end_loc, "modifiers": self.modifiers, "clean_text": self.clean_text}
-        
+                "endLoc": self.end_loc, "col": self.col, "clean_text": self.clean_text}
+    
     def get_content(self):
 
         if self.clean_text:
             return self.name + self.clean_text
-        elif self.text:
-            return self.name + self.text # 为了兼容没有经过 clean text 处理的数据
         else:
             return self.name
 
-
-class Field:
+class Attribute:
     """
     字段节点
     - name: 字段名
     - field_type: 字段名类型
     """
 
-    def __init__(self, node_id, name, field_type, intializer, modifiers, comment, arguments, start_loc, end_loc,
-                 codegraph):
+    def __init__(self, node_id, name, attribute_type, comment, text, start_loc, end_loc, col, codegraph):
         self.node_id = node_id
         self.name = name
-        self.field_type = field_type
-        self.intializer = intializer
-        self.modifiers = modifiers
+        self.attribute_type = attribute_type
         self.comment = comment
-        self.arguments = arguments
+        self.text = text
         self.start_loc = start_loc
         self.end_loc = end_loc
+        self.col = col
         self.codegraph = codegraph
 
     @staticmethod
     def get_type():
-        return NodeType.FIELD
+        return NodeType.ATTRIBUTE
 
     def __str__(self):
-        return self.name + ":" + self.field_type
+        return self.name + ":" + self.attribute_type
 
     def __repr__(self):
         return self.__str__()
 
     def to_dict(self):
-        return {"nodeType": NodeType.FIELD.name.capitalize(), "nodeId": self.node_id, "name": self.name,
-                "fieldType": self.field_type, "intializer": self.intializer, "comment": self.comment,
-                "arguments": self.arguments, "startLoc": self.start_loc, "col": self.end_loc, "modifiers": self.modifiers}
+        return {"nodeType": NodeType.ATTRIBUTE.name.capitalize(), "id": self.node_id, "name": self.name,
+                "attributeType": self.attribute_type, "comment": self.comment, "text": self.text, "startLoc": self.start_loc,
+                "endLoc": self.end_loc, "col": self.col}
     
     def get_content(self):
-        
-        comment = self.comment if self.comment else ""
-        modifiers = self.modifiers if self.modifiers else ""
-        field_type = self.field_type if self.field_type else ""
-        
-        if self.comment:
-            return comment + "\n" + modifiers +\
-            " " + field_type + " " + self.name
+        # 不确定这个实体的 comment 是否会出现在 text 中
+        # 所以先不加
+        if self.text:
+            return self.text
         else:
-            return modifiers + " " +\
-                field_type + " " + self.name
+            return self.name
 
-
-class Method:
+class Function:
     """
     方法节点
-    - signature: 方法签名，格式为<class_name>#<method_name>(<params_type>,...)<return_type>
+    - header: 方法头部信息
     - text: 方法文本,包含注释、方法签名和方法体等
     """
 
-    def __init__(self, node_id, signature, modifiers, text, comment, class_name, method_name, method_sig, start_loc,
-                 end_loc, codegraph):
+    def __init__(self, node_id, name, header, comment, text, start_loc, end_loc, col, codegraph):
         self.node_id = node_id
-        self.signature = signature
-        self.modifiers = modifiers
-        self.text = text
+        self.name = name
+        self.header = header
         self.comment = comment
-        self.class_name = class_name
-        self.method_name = method_name
-        self.method_sig = method_sig
+        self.text = text
         self.start_loc = start_loc
         self.end_loc = end_loc
+        self.col = col
         self.codegraph = codegraph
 
     @staticmethod
     def get_type():
-        return NodeType.METHOD
+        return NodeType.FUNCTION
 
-    def get_simple_signature(self):
-        return self.signature[self.signature.index("#") + 1:]
+    def get_header(self):
+        return self.header
 
     def query_containing_file(self):
-        return f'方法{self.signature}包含在文件{self.get_containing_file().get_path()}中'
+        return f'方法{self.header}包含在文件{self.get_containing_file().get_path()}中'
 
     def get_containing_file(self):
         class_ids = self.codegraph.get_in_nodes(self.node_id, EdgeType.CONTAINS)
@@ -683,8 +673,8 @@ class Method:
 
     def query_callees(self):
         callees = self.get_callees()
-        s = '\n'.join(list(map(lambda x: x.signature, callees)))
-        return f'方法{self.signature}直接调用了以下方法:\n{s}'
+        s = '\n'.join(list(map(lambda x: x.header, callees)))
+        return f'函数{self.header}直接调用了以下函数:\n{s}'
 
     def get_callees(self):
         return list(map(self.codegraph.get_node_by_id, self.codegraph.get_out_nodes(self.node_id, EdgeType.CALLS)))
@@ -694,8 +684,8 @@ class Method:
 
     def query_callers(self):
         callers = self.get_callers()
-        s = '\n'.join(list(map(lambda x: x.signature, callers)))
-        return f'方法{self.signature}被以下方法直接调用了:\n{s}'
+        s = '\n'.join(list(map(lambda x: x.header, callers)))
+        return f'函数{self.header}被以下函数直接调用了:\n{s}'
 
     def get_callers(self):
         return list(map(self.codegraph.get_node_by_id, self.codegraph.get_in_nodes(self.node_id, EdgeType.CALLS)))
@@ -703,44 +693,116 @@ class Method:
     def get_caller_ids(self):
         return self.codegraph.get_in_nodes(self.node_id, EdgeType.CALLS)
 
-    def query_common_callees(self, method1):
-        common = self.get_common_callee_ids(method1)
+    def query_common_callees(self, function1):
+        common = self.get_common_callee_ids(function1)
         if len(common) == 0:
-            return f"方法{self.signature}和方法{method1.signature}没有调用同一个方法"
-        s = '\n'.join(list(map(lambda x: x.signature, common)))
-        return f"方法{self.signature}和方法{method1.signature}调用了{len(common)}个共同的方法，分别是:\n{s}"
+            return f"函数{self.header}和函数{function1.header}没有调用同一个函数"
+        s = '\n'.join(list(map(lambda x: x.header, common)))
+        return f"函数{self.header}和函数{function1.header}调用了{len(common)}个共同的函数，分别是:\n{s}"
 
-    def get_common_callee_ids(self, method1):
-        return set(self.get_callee_ids()) & set(method1.get_callee_ids())
+    def get_common_callee_ids(self, function1):
+        return set(self.get_callee_ids()) & set(function1.get_callee_ids())
 
-    def query_common_callers(self, method1):
-        common = self.get_common_caller_ids(method1)
+    def query_common_callers(self, function1):
+        common = self.get_common_caller_ids(function1)
         if len(common) == 0:
-            return f"方法{self.signature}和方法{method1.signature}没有被同一个方法共同调用"
-        s = '\n'.join(list(map(lambda x: x.signature, common)))
-        return f"方法{self.signature}和方法{method1.signature}被{len(common)}个方法共同调用，分别是:\n{s}"
+            return f"函数{self.header}和函数{function1.header}没有被同一个函数共同调用"
+        s = '\n'.join(list(map(lambda x: x.header, common)))
+        return f"函数{self.header}和函数{function1.header}被{len(common)}个方法共同调用，分别是:\n{s}"
 
     def get_common_caller_ids(self, method1):
         return set(self.get_caller_ids()) & set(method1.get_caller_ids())
 
     def __str__(self):
-        return self.signature
+        return self.header
 
     def __repr__(self):
-        return self.signature
+        return self.header
 
     def to_dict(self):
-        return {"nodeType": NodeType.METHOD.name.capitalize(), "nodeId": self.node_id, "signature": self.signature,
-                "method_name": self.method_name, "method_sig": self.method_sig, "comment": self.comment,
-                "text": self.text, "startLoc": self.start_loc, "endLoc": self.end_loc, "modifiers": self.modifiers,
-                "className": self.class_name}
+        return {"nodeType": NodeType.FUNCTION.name.capitalize(), "id": self.node_id, "name": self.name,
+                "header": self.header, "comment": self.comment, "text": self.text, "startLoc": self.start_loc,
+                "endLoc": self.end_loc, "col": self.col}
     
     def get_content(self):
-        if self.comment:
-            return self.comment + "\n" + self.text
-        else:
+
+        if self.text:
             return self.text
+        else:
+            return self.name
+
+class Lambda:
+    """
+    Lambda节点
+    - text: 方法文本,包含注释、方法签名和方法体等
+    """
+
+    def __init__(self, node_id, text, start_loc, end_loc, col, codegraph):
+        self.node_id = node_id
+        self.text = text
+        self.start_loc = start_loc
+        self.end_loc = end_loc
+        self.col = col
+        self.codegraph = codegraph
+
+    @staticmethod
+    def get_type():
+        return NodeType.LAMBDA
+
+    def query_containing_file(self):
+        return f'Lambda{self.text}包含在文件{self.get_containing_file().get_path()}中'
+
+    def get_containing_file(self):
+        class_ids = self.codegraph.get_in_nodes(self.node_id, EdgeType.CONTAINS)
+        if len(class_ids) == 0:
+            return None
+        class_node_id = class_ids[0]
+        return self.codegraph.get_node_by_id(class_node_id).get_containing_file()
+
+    def query_callees(self):
+        callees = self.get_callees()
+        s = '\n'.join(list(map(lambda x: x.header, callees)))
+        return f'Lambda{self.text}直接调用了以下方法:\n{s}'
+
+    def get_callees(self):
+        return list(map(self.codegraph.get_node_by_id, self.codegraph.get_out_nodes(self.node_id, EdgeType.CALLS)))
+
+    def get_callee_ids(self):
+        return self.codegraph.get_out_nodes(self.node_id, EdgeType.CALLS)
+
+    def query_callers(self):
+        callers = self.get_callers()
+        s = '\n'.join(list(map(lambda x: x.header, callers)))
+        return f'Lambda{self.text}被以下函数直接调用了:\n{s}'
+
+    def get_callers(self):
+        return list(map(self.codegraph.get_node_by_id, self.codegraph.get_in_nodes(self.node_id, EdgeType.CALLS)))
+
+    def get_caller_ids(self):
+        return self.codegraph.get_in_nodes(self.node_id, EdgeType.CALLS)
+
+    def get_common_callee_ids(self, method1):
+        return set(self.get_callee_ids()) & set(method1.get_callee_ids())
+
+    def get_common_caller_ids(self, method1):
+        return set(self.get_caller_ids()) & set(method1.get_caller_ids())
+
+    def __str__(self):
+        return self.text
+
+    def __repr__(self):
+        return self.text
+
+    def to_dict(self):
+        return {"nodeType": NodeType.LAMBDA.name.capitalize(), "id": self.node_id, "text": self.text,
+                "startLoc": self.start_loc, "endLoc": self.end_loc, "col": self.col}
         
+    def get_content(self):
+
+        if self.text:
+            return self.text
+        else:
+            return ''
 
 
 class Edge:
@@ -774,7 +836,7 @@ def parse(filename):
     codegraph = CodeGraph({}, {}, {})
 
     try:
-        with open(filename, 'r') as file:
+        with open(filename, 'r', encoding="utf-8") as file:
             content = file.read()
             print(f"Graph file opened: {filename}")
     except json.JSONDecodeError as e:
@@ -790,45 +852,48 @@ def parse(filename):
 
     for node in data['nodes']:
         node_type = node['nodeType']
-        
-        # TODO
-        # 兼容不同 json 文件格式
-        try:
-            node_id = node['nodeId']
-        except:
-            node_id = node['id']
-        
+        node_id = node['id']
         if node_type.upper() == NodeType.REPO.name:
-            codegraph.nodes[node_id] = Repo(node_id, node.get('path'), codegraph)
+            name_1 = node.get('repoName')
+            name_2 = node.get('name')
+            name = name_1 if name_1 else name_2
+            codegraph.nodes[node_id] = Repo(node_id, name, codegraph)
         elif node_type.upper() == NodeType.PACKAGE.name:
             codegraph.nodes[node_id] = Package(node_id, node['name'], codegraph)
-        # Handle old graph format
-        elif node_type.upper() == "MODULE":
-            codegraph.nodes[node_id] = Package(node_id, node['name'], codegraph)
         elif node_type.upper() == NodeType.FILE.name:
-            codegraph.nodes[node_id] = File(node_id, node['name'], node.get('path'), node.get('text'), codegraph, node.get('clean_text'))
+            # 为了兼容不一致的字段
+            name_1 = node.get('fileName')
+            name_2 = node.get('name')
+            name = name_1 if name_1 else name_2
+            
+            path_1 = node.get('filePath')
+            path_2 = node.get('path')
+            path = path_1 if path_1 else path_2
+
+            codegraph.nodes[node_id] = File(node_id, name, path, node.get('text'), codegraph, node.get('clean_text'))
         elif node_type.upper() == NodeType.TEXTFILE.name:
-            codegraph.nodes[node_id] = TextFile(node_id, node['name'], node['text'], node.get('path'), codegraph)
+            codegraph.nodes[node_id] = TextFile(node_id, node['name'], node['text'], node['path'], codegraph)
         elif node_type.upper() == NodeType.CLASS.name:
-
-            # Patch：由于 Lib 不连通，考虑不读入 Lib 节点
-            ########################################
-            if node.get('classType') == 'Lib':
-                continue
-            ########################################
-
-            codegraph.nodes[node_id] = Class(node_id, node['name'], node.get('classType'), node.get('modifiers'),
+            name_1 = node.get('className')
+            name_2 = node.get('name')
+            name = name_1 if name_1 else name_2
+            codegraph.nodes[node_id] = Class(node_id, name, node.get('classType'),
                                              node.get('comment'), node.get('text'), node.get('startLoc'),
-                                             node.get('endLoc'), codegraph, node.get('clean_text'))
-        elif node_type.upper() == NodeType.FIELD.name:
-            codegraph.nodes[node_id] = Field(node_id, node['name'], node['fieldType'], node.get('initializer'),
-                                             node.get('modifiers'), node.get('comment'), node.get('arguments'),
-                                             node.get('startLoc'), node.get('endLoc'), codegraph)
-        elif node_type.upper() == NodeType.METHOD.name:
-            codegraph.nodes[node_id] = Method(node_id, node['signature'], node['modifiers'], node['text'],
-                                              node.get('comment'), node.get('className'), node.get('methodName'),
-                                              node.get('methodSig'), node.get('startLoc'), node.get('endLoc'),
-                                              codegraph)
+                                             node.get('endLoc'), node.get('col'), codegraph, node.get('clean_text'))
+        elif node_type.upper() == NodeType.ATTRIBUTE.name:
+            attr_1 = node.get('attributeType')
+            attr_2 = node.get('type')
+            attr = attr_1 if attr_1 else attr_2
+            codegraph.nodes[node_id] = Attribute(node_id, node['name'], attr, node.get('comment'),
+                                                 node.get('text'), node.get('startLoc'), node.get('endLoc'),
+                                                 node.get('col'), codegraph)
+        elif node_type.upper() == NodeType.FUNCTION.name:
+            codegraph.nodes[node_id] = Function(node_id, node['name'], node['header'], node['comment'],
+                                                node.get('text'), node.get('startLoc'), node.get('endLoc'),
+                                                node.get('col'), codegraph)
+        elif node_type.upper() == NodeType.LAMBDA.name:
+            codegraph.nodes[node_id] = Lambda(node_id, node['text'], node.get('startLoc'),
+                                              node.get('endLoc'), node.get('col'), codegraph)
         else:
             print("Unkonwn node type: {0}", node_type)
 
@@ -845,6 +910,22 @@ def parse(filename):
     print(f"Graph data parsed, nodes: {len(codegraph.nodes):,}, edges: {len(codegraph.edges):,}")
 
     return codegraph
+
+
+def link_repo_to_package(codegraph: CodeGraph):
+    repos = codegraph.get_nodes_by_type(NodeType.REPO)
+    if len(repos) == 1:
+        repo = repos[0]
+        packages = codegraph.get_nodes_by_type(NodeType.PACKAGE)
+        for package in packages:
+            edge = Edge(EdgeType.CONTAINS, repo.node_id, package.node_id)
+            codegraph.edges.add(edge)
+            codegraph.out_edges.setdefault(repo.node_id, set()).add(edge)
+            codegraph.in_edges.setdefault(package.node_id, set()).add(edge)
+
+
+def serialize(codegraph: CodeGraph):
+    return json.dumps(codegraph.to_dict())
 
 
 def sizeof_fmt(num, suffix='B'):

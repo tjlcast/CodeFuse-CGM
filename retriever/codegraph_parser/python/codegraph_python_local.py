@@ -1,8 +1,5 @@
 """
-这个 parser 将兼容 CGM 项目格式
-即 所有节点的内容 将裁剪掉其子节点内容（保证内容不重复）
-为 File 和 Class 节点新增 clean_text 字段
-get_content 函数也将返回 clean_text 字段组成的内容
+parser for python code graph
 """
 import json
 import random

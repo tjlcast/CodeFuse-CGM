@@ -179,7 +179,9 @@ if __name__ == "__main__":
         
         # 获取子图的节点id
         result_nodes = [node.node_id for node in result_nodes if node.get_type() == NodeType.FILE]
-
+        
         subgraph_id_dict[instance_id] = list(result_nodes)
         
-        # TODO: 自定义保存方式
+        # save
+        with open("subgraph_nodes.json", 'w', encoding='utf-8') as file:
+            json.dump(anchor_node_dict, file)
